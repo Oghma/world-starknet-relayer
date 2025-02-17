@@ -1,4 +1,5 @@
 use alloy_consensus::Header;
+use alloy_primitives::FixedBytes;
 use header::RlpHeader;
 use proofs::AccountProof;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,11 @@ pub struct ProverInput {
     /// The RlpHeader ensures proper serialization format and provides
     /// efficient hash computation through cached RLP encoding.
     pub header: RlpHeader<Header>,
+    /// The block hash (keccak256 of RLP-encoded header) where the proof is anchored
+    ///
+    /// This serves as the root of trust for verifying the account and storage proofs.
+    /// Must match the hash computed from the RlpHeader to ensure consistency.
+    pub block_header: FixedBytes<32>,
     /// Complete account proof including storage information
     ///
     /// Contains the Merkle-Patricia proof for the account's state
