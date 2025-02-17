@@ -8,6 +8,7 @@ use alloy_trie::{
 use serde::{Deserialize, Serialize};
 
 use super::StorageProof;
+use crate::error::{ProverError, TrieErrorContext};
 
 /// Represents a full account proof including storage information.
 ///
@@ -75,6 +76,11 @@ impl AccountProof {
         self.code_hash.encode(&mut out);
         let account_state = alloy_rlp::encode(out);
 
-        verify_proof(state_root, key, Some(account_state), proof_refs)
+        verify_proof(state_root, key, Some(account_state), proof_refs).map_err(|e| {
+            ProverError::TrieVerification {
+                context: TrieErrorContext::AccountRoot,
+                source: e,
+            }
+        })
     }
 }

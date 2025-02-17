@@ -3,6 +3,7 @@ use header::RlpHeader;
 use proofs::AccountProof;
 use serde::{Deserialize, Serialize};
 
+pub mod error;
 pub mod header;
 pub mod proofs;
 
