@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/types", "methods"]
+members = ["crates/types", "relayer", "methods"]
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]
@@ -13,3 +13,4 @@ lto = true
 [workspace.dependencies]
 # workspace
 types = { path = "./crates/types" }
+methods = { path = "./methods" }
