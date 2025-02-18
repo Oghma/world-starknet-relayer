@@ -1,5 +1,4 @@
-use core::fmt;
-use std::ops;
+use std::{fmt, ops};
 
 use alloy_consensus::{Sealable, Sealed};
 use alloy_primitives::{hex, keccak256, B256};

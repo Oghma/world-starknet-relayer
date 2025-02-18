@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "methods"]
+members = ["crates/types", "methods"]
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]
@@ -12,4 +12,4 @@ lto = true
 
 [workspace.dependencies]
 # workspace
-core = { path = "./crates/core" }
+types = { path = "./crates/types" }

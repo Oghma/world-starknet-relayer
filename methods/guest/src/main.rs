@@ -1,5 +1,6 @@
-use core::{error::ProverError, ProverInput};
 use risc0_zkvm::guest::env;
+
+use types::{error::ProverError, ProverInput};
 
 /// ZKVM guest program for verifying Ethereum state proofs.
 ///
