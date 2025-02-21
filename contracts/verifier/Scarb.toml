@@ -1,0 +1,25 @@
+[package]
+name = "verifier"
+version = "0.1.0"
+edition = "2023_11"
+
+# See more keys and their definitions at https://docs.swmansion.com/scarb/docs/reference/manifest.html
+
+[dependencies]
+garaga = { git = "https://github.com/keep-starknet-strange/garaga.git", tag = "v0.15.4" }
+starknet.workspace = true
+world_relayer_store = { path = "../store" }
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+cairo_test.workspace = true
+
+[tool]
+fmt.workspace = true
+
+[[target.starknet-contract]]
+casm = true
+casm-add-pythonic-hints = true
+
+[lib]

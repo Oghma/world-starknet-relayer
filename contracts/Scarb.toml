@@ -1,0 +1,28 @@
+[workspace]
+members = ["store", "verifier"]
+
+[workspace.dependencies]
+starknet = "2.9.4"
+assert_macros = "2.9.4"
+snforge_std = "0.37.0"
+cairo_test = "2.9.4"
+
+[dev-dependencies]
+snforge_std.workspace = true
+cairo_test.workspace = true
+
+[[target.starknet-contract]]
+casm = true
+casm-add-pythonic-hints = true
+
+[workspace.tool.fmt]
+sort-module-level-items = true
+
+[tool]
+fmt.workspace = true
+
+[lib]
+casm = true
+
+[cairo]
+sierra-replace-ids = false
