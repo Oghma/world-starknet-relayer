@@ -4,13 +4,13 @@ pub mod universal_ecip;
 pub mod world_relayer_verifier;
 use core::num::traits::{Bounded, WideMul};
 
-#[derive(Drop, Copy, Serde)]
+#[derive(Drop, Debug, Copy, PartialEq, Serde)]
 pub struct Journal {
     pub latest_block: u64,
     pub state_root: u256,
 }
 
-pub(crate) fn decode_journal(journal_bytes: Span<u8>) -> Journal {
+pub fn decode_journal(journal_bytes: Span<u8>) -> Journal {
     let mut offset = 0; // Skip initial bytes
 
     // Parse latest_block
@@ -25,23 +25,17 @@ pub(crate) fn decode_journal(journal_bytes: Span<u8>) -> Journal {
 
     // Parse latest_root
     offset += 8;
+    offset += 4; // Skip length indicator (66, 0, 0, 0)
     let mut state_root: u256 = 0;
-    let mut i = offset;
-    let loop_end = offset + 64; // 64 hex characters for 32 bytes
+    let mut i = 0;
 
     loop {
-        if i >= loop_end {
+        if i >= 32 {
             break;
         }
-
-        let f0: u256 = BitShift::shl(state_root, 4);
-        let f1: u256 = (*journal_bytes.at(i)).into();
-        let f2: u256 = if f1 < 58 { // '0'-'9' vs 'a'-'f'
-            48 // ASCII '0'
-        } else {
-            87 // ASCII 'a' - 10
-        };
-        state_root = f0 + f1 - f2;
+        // Read each byte and shift into position
+        let byte: u256 = (*journal_bytes.at(offset + i)).into();
+        state_root = state_root * 256 + byte;
         i += 1;
     };
 
@@ -125,38 +119,42 @@ mod tests {
             0,
             0,
             0,
-            243,
-            254,
-            109,
-            11,
-            74,
-            232,
-            129,
-            133,
-            21,
-            193,
-            168,
-            94,
-            41,
-            140,
-            221,
-            240,
-            139,
-            51,
-            63,
-            19,
-            93,
-            85,
-            81,
-            97,
-            179,
-            64,
-            45,
-            71,
-            22,
-            138,
-            196,
+            32,
+            0,
+            0,
+            0,
             38,
+            196,
+            138,
+            22,
+            71,
+            45,
+            64,
+            179,
+            97,
+            81,
+            85,
+            93,
+            19,
+            63,
+            51,
+            139,
+            240,
+            221,
+            140,
+            41,
+            94,
+            168,
+            193,
+            21,
+            133,
+            129,
+            232,
+            74,
+            11,
+            109,
+            254,
+            243,
         ]
             .span()
     }

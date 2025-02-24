@@ -5,11 +5,11 @@ members = ["store", "verifier"]
 starknet = "2.9.4"
 assert_macros = "2.9.4"
 snforge_std = "0.37.0"
-cairo_test = "2.9.4"
+#cairo_test = "2.9.4"
 
 [dev-dependencies]
 snforge_std.workspace = true
-cairo_test.workspace = true
+#cairo_test.workspace = true
 
 [[target.starknet-contract]]
 casm = true

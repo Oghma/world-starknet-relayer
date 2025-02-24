@@ -2,6 +2,7 @@
 pub trait IWorldRelayerVerifier<TContractState> {
     fn verify_latest_root_proof(ref self: TContractState, proof: Span<felt252>) -> bool;
     fn get_verifier_address(self: @TContractState) -> starknet::ContractAddress;
+    fn get_world_relayer_store_address(self: @TContractState) -> starknet::ContractAddress;
 }
 
 #[starknet::contract]
@@ -46,31 +47,41 @@ mod WorldRelayerVerifier {
             .write(IWorldRelayerStoreDispatcher { contract_address: world_relayer_store_address });
     }
 
-    #[external(v0)]
-    fn verify_latest_root_proof(ref self: ContractState, mut proof: Span<felt252>) -> bool {
-        let _ = proof.pop_front();
-        let journal = self
-            .bn254_verifier
-            .read()
-            .verify_groth16_proof_bn254(proof)
-            .expect('Failed to verify proof');
+    #[abi(embed_v0)]
+    impl WorldRelayerVerifier of super::IWorldRelayerVerifier<ContractState> {
+        fn verify_latest_root_proof(ref self: ContractState, mut proof: Span<felt252>) -> bool {
+            let _ = proof.pop_front();
+            let journal = self
+                .bn254_verifier
+                .read()
+                .verify_groth16_proof_bn254(proof)
+                .expect('Failed to verify proof');
 
-        let journal = decode_journal(journal);
-        let world_relayer_store = self.world_relayer_store.read();
+            let journal = decode_journal(journal);
+            let world_relayer_store = self.world_relayer_store.read();
 
-        let (old_latest_root, old_latest_block) = world_relayer_store.get_latest_root_block();
-        world_relayer_store.update_latest_root_state(journal);
+            let (old_latest_root, old_latest_block) = world_relayer_store.get_latest_root_block();
+            world_relayer_store.update_latest_root_state(journal);
 
-        self
-            .emit(
-                LatestRootVerified {
-                    old_latest_root,
-                    old_latest_block,
-                    new_latest_block: journal.latest_block,
-                    new_latest_root: journal.state_root,
-                },
-            );
+            self
+                .emit(
+                    LatestRootVerified {
+                        old_latest_root,
+                        old_latest_block,
+                        new_latest_block: journal.latest_block,
+                        new_latest_root: journal.state_root,
+                    },
+                );
 
-        true
+            true
+        }
+
+        fn get_verifier_address(self: @ContractState) -> starknet::ContractAddress {
+            self.bn254_verifier.read().contract_address
+        }
+
+        fn get_world_relayer_store_address(self: @ContractState) -> starknet::ContractAddress {
+            self.world_relayer_store.read().contract_address
+        }
     }
 }
