@@ -1,6 +1,6 @@
 use risc0_zkvm::guest::env;
 
-use types::{error::ProverError, ProverInput};
+use types::{error::ProverError, ProverInput, ProverOutput};
 
 /// ZKVM guest program for verifying Ethereum state proofs.
 ///
@@ -37,6 +37,9 @@ fn main() {
 
     // All clear, the storage proof value is correct. Add WorldID latestRoot to
     // the journal
-    env::commit(&storage_proof.value);
-    env::commit(&input.block_header);
+    let output = ProverOutput {
+        block_number: input.header.number,
+        state_root: storage_proof.value,
+    };
+    env::commit(&output);
 }

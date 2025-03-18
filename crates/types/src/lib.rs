@@ -1,5 +1,5 @@
 use alloy_consensus::Header;
-use alloy_primitives::FixedBytes;
+use alloy_primitives::{FixedBytes, U256};
 use header::RlpHeader;
 use proofs::AccountProof;
 use serde::{Deserialize, Serialize};
@@ -29,4 +29,10 @@ pub struct ProverInput {
     /// Contains the Merkle-Patricia proof for the account's state
     /// and a proof for the specific storage slot being verified.
     pub account_proof: AccountProof,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProverOutput {
+    pub block_number: u64,
+    pub state_root: U256,
 }
