@@ -5,7 +5,6 @@
 
 mod relayer;
 
-use alloy::primitives::{FixedBytes, U256};
 use clap::Parser;
 use eyre::Result;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -20,6 +19,32 @@ struct Config {
     /// Secondary Ethereum JSON-RPC endpoint URL for fetching block hash
     #[arg(short, long, env, default_value = "https://eth.merkle.io")]
     second_rpc_url: String,
+
+    /// Starknet JSON-RPC endpoint URL
+    #[arg(
+        short = 'b',
+        long,
+        env = "STARKNET_RPC",
+        default_value = "https://starknet-mainnet.public.blastapi.io"
+    )]
+    starknet_rpc_url: String,
+
+    /// Private key for transaction signing
+    #[arg(long, env = "PRIVATE_KEY", required = true)]
+    private_key: String,
+
+    /// Starknet account address
+    #[arg(long, env = "STARKNET_ACCOUNT", required = true)]
+    account_address: String,
+
+    /// Address of the WorldRelayerVerifier contract
+    #[arg(
+        short = 'v',
+        long,
+        env = "WORLD_RELAYER_VERIFIER_ADDRESS",
+        required = true
+    )]
+    world_verifier: String,
 
     /// Storage slot number for identity merkle root in WorldID contract
     #[arg(short, long, env, default_value = "302")]
@@ -38,8 +63,6 @@ async fn main() -> Result<()> {
 
     let config = Config::parse();
     tracing::debug!(?config, "Loaded configuration");
-
-    let _storage_slot = FixedBytes::from(U256::from(config.root_slot));
 
     relayer::run(config).await
 }
