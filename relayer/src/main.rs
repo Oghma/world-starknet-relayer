@@ -16,10 +16,6 @@ struct Config {
     #[arg(short, long, env, default_value = "https://eth.llamarpc.com")]
     first_rpc_url: String,
 
-    /// Secondary Ethereum JSON-RPC endpoint URL for fetching block hash
-    #[arg(short, long, env, default_value = "https://eth.merkle.io")]
-    second_rpc_url: String,
-
     /// Starknet JSON-RPC endpoint URL
     #[arg(
         short = 'b',

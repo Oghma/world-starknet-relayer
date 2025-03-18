@@ -68,9 +68,6 @@ pub async fn run(config: Config) -> Result<()> {
     let main_provider = ProviderBuilder::new()
         .on_builtin(&config.first_rpc_url)
         .await?;
-    let block_provider = ProviderBuilder::new()
-        .on_builtin(&config.second_rpc_url)
-        .await?;
     let world_id_addr = Address::from_str(&config.world_im)?;
     let world_id = WorldIdentityManager::new(world_id_addr, main_provider.clone());
     tracing::info!("World id manager address: {world_id_addr}");
@@ -121,7 +118,7 @@ pub async fn run(config: Config) -> Result<()> {
             .await?;
 
         // Fetch block hash from another node
-        let block_hash = block_provider
+        let block_hash = main_provider
             .get_block_by_number(
                 BlockNumberOrTag::Number(block_number),
                 BlockTransactionsKind::Hashes,
