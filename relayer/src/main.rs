@@ -4,6 +4,7 @@
 //! storage inclusion proofs for state transitions.
 
 mod listener;
+mod prover;
 mod relayer;
 
 use clap::Parser;
