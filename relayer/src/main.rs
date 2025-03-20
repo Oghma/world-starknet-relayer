@@ -3,6 +3,7 @@
 //! A zk-SNARK based relayer that monitors World ID identity changes and generates
 //! storage inclusion proofs for state transitions.
 
+mod listener;
 mod relayer;
 
 use clap::Parser;
