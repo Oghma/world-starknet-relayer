@@ -12,10 +12,15 @@ dotenvy = "0.15.7"
 eyre = "0.6.12"
 garaga_rs = { git = "https://github.com/keep-starknet-strange/garaga.git", tag = "v0.15.4" }
 risc0-ethereum-contracts = "1.3.2"
-risc0-zkvm = { version = "1.2.2" }
+risc0-zkvm = { version = "1.2.5" }
 tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread", "macros"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# fossil
+fossil-publisher = { git = "https://github.com/OilerNetwork/fossil-light-client.git", package = "publisher" }
+fossil-types = { git = "https://github.com/OilerNetwork/fossil-light-client.git", package = "guest-types" }
+fossil-methods = { git = "https://github.com/OilerNetwork/fossil-light-client.git", package = "methods" }
 
 # workspace
 types.workspace = true
