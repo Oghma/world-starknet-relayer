@@ -5,6 +5,7 @@
 
 mod listener;
 mod prover;
+mod publisher;
 mod relayer;
 
 use clap::Parser;
