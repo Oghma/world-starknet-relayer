@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use alloy_chains::NamedChain;
 use eyre::Result;
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
@@ -26,6 +27,7 @@ impl ProofPublisher {
         private_key: &str,
         account_address: &str,
         world_verifier: &str,
+        chain: &alloy_chains::Chain,
     ) -> Result<Self> {
         let provider = JsonRpcClient::new(HttpTransport::new(Url::from_str(rpc_url)?));
         let signer =
@@ -33,11 +35,17 @@ impl ProofPublisher {
 
         let account_address = Felt::from_hex(account_address)?;
         let relayer_verifier = Felt::from_hex(world_verifier)?;
+        let chain = match chain.named().unwrap() {
+            NamedChain::Mainnet => chain_id::MAINNET,
+            NamedChain::Sepolia => chain_id::SEPOLIA,
+            _ => return Err(eyre::eyre!("Unsupported chain for Starknet")),
+        };
+
         let account = SingleOwnerAccount::new(
             provider,
             signer,
             account_address,
-            chain_id::SEPOLIA,
+            chain,
             ExecutionEncoding::New,
         );
 

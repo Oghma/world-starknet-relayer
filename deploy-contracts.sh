@@ -105,9 +105,7 @@ if [ -f "$ORIGINAL_DIR/.env" ]; then
     ENV_FILE="$ORIGINAL_DIR/.env"
     
     echo -e "${BLUE}Storing contract addresses in .env${NC}"
-    update_env_var "RELAYER_STORE_ADDRESS" "$RELAYER_STORE_ADDRESS"
-    update_env_var "VERIFIER_ADDRESS" "$VERIFIER_ADDRESS"
-    update_env_var "WORLD_RELAYER_VERIFIER_ADDRESS" "$WORLD_RELAYER_VERIFIER_ADDRESS"
+    update_env_var "RELAYER_VERIFIER" "$VERIFIER_ADDRESS"
 fi
 
 echo -e "\n${GREEN}${BOLD}All contracts deployed!${NC}"

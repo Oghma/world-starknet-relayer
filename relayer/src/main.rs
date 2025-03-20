@@ -11,49 +11,54 @@ mod relayer;
 use clap::Parser;
 use eyre::Result;
 use tracing_subscriber::{fmt, EnvFilter};
+use alloy_chains::Chain;
 
 use relayer::RelayerBuilder;
 
 #[derive(Debug, Parser)]
 #[command(version, about, author)]
 struct Config {
-    /// Primary Ethereum JSON-RPC endpoint URL
-    #[arg(short, long, env, default_value = "https://eth.llamarpc.com")]
-    first_rpc_url: String,
+    /// Chain to operate on (e.g., "sepolia", "mainnet")
+    #[arg(short = 'c', long, env = "CHAIN", default_value = "sepolia")]
+    chain: Chain,
+
+    /// Ethereum JSON-RPC endpoint URL
+    #[arg(
+        short = 'e',
+        long,
+        env = "ETH_RPC_URL",
+        default_value = "https://eth.llamarpc.com"
+    )]
+    ethereum_rpc_url: String,
 
     /// Starknet JSON-RPC endpoint URL
     #[arg(
-        short = 'b',
+        short = 's',
         long,
-        env = "STARKNET_RPC",
+        env = "STARKNET_RPC_URL",
         default_value = "https://starknet-mainnet.public.blastapi.io"
     )]
     starknet_rpc_url: String,
 
-    /// Private key for transaction signing
-    #[arg(long, env = "PRIVATE_KEY", required = true)]
-    private_key: String,
+    /// Starknet private key for transaction signing
+    #[arg(long, env = "STARKNET_PRIVATE_KEY", required = true)]
+    starknet_private_key: String,
 
     /// Starknet account address
-    #[arg(long, env = "STARKNET_ACCOUNT", required = true)]
-    account_address: String,
+    #[arg(long, env = "STARKNET_ACCOUNT_ADDRESS", required = true)]
+    starknet_account: String,
 
     /// Address of the WorldRelayerVerifier contract
-    #[arg(
-        short = 'v',
-        long,
-        env = "WORLD_RELAYER_VERIFIER_ADDRESS",
-        required = true
-    )]
-    world_verifier: String,
-
-    /// Storage slot number for identity merkle root in WorldID contract
-    #[arg(short, long, env, default_value = "302")]
-    root_slot: u64,
+    #[arg(short = 'v', long, env = "RELAYER_VERIFIER", required = true)]
+    relayer_verifier: String,
 
     /// Address of the WorldIdentityManager contract
     #[arg(short = 'm', long, env = "WORLD_IDENTITY_MANAGER", required = true)]
-    world_im: String,
+    world_id_manager: String,
+
+    /// Storage slot of the latestRoot variable in WorldIdentityManager contract
+    #[arg(short = 'r', long, env = "WORLD_ID_LATEST_ROOT_SLOT", default_value = "302")]
+    world_id_latest_root_slot: u64,
 }
 
 #[tokio::main]

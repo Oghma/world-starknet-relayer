@@ -6,6 +6,7 @@ use alloy::{
     providers::{DynProvider, Provider, ProviderBuilder},
     rpc::types::BlockTransactionsKind,
 };
+use alloy_chains::Chain;
 use eyre::{Result, WrapErr};
 use futures_util::StreamExt;
 use types::{header::RlpHeader, proofs::AccountProof, ProverInput};
@@ -14,12 +15,13 @@ use crate::{listener::WorldIDListener, prover::Risc0Prover, publisher::ProofPubl
 
 #[derive(Debug, Clone)]
 pub struct Relayer {
-    storage_slot: FixedBytes<32>,
+    latest_root_slot: FixedBytes<32>,
     world_listener: WorldIDListener,
     provider: DynProvider,
     world_id_addr: Address,
     prover: Risc0Prover,
     proof_publisher: ProofPublisher,
+    chain: Chain,
 }
 
 /// Builder for the Relayer struct to simplify initialization
@@ -34,31 +36,34 @@ impl RelayerBuilder {
     }
 
     pub async fn build(self) -> Result<Relayer> {
-        let storage_slot = FixedBytes::<32>::from(U256::from(self.config.root_slot));
+        let latest_root_slot =
+            FixedBytes::<32>::from(U256::from(self.config.world_id_latest_root_slot));
         let provider = ProviderBuilder::new()
-            .on_builtin(&self.config.first_rpc_url)
+            .on_builtin(&self.config.ethereum_rpc_url)
             .await?
             .erased();
 
-        let world_idm = Address::from_str(&self.config.world_im)
+        let world_idm = Address::from_str(&self.config.world_id_manager)
             .wrap_err("Failed to parse World Identity Manager address")?;
         let world_listener = WorldIDListener::new(provider.clone(), world_idm.clone());
 
         let prover = Risc0Prover {};
         let publisher = ProofPublisher::new(
             &self.config.starknet_rpc_url,
-            &self.config.private_key,
-            &self.config.account_address,
-            &self.config.world_verifier,
+            &self.config.starknet_private_key,
+            &self.config.starknet_account,
+            &self.config.relayer_verifier,
+            &self.config.chain,
         )?;
 
         Ok(Relayer {
-            storage_slot,
+            latest_root_slot,
             world_listener,
             provider,
             world_id_addr: world_idm,
             prover,
             proof_publisher: publisher,
+            chain: self.config.chain,
         })
     }
 }
@@ -93,7 +98,7 @@ impl Relayer {
 
         let account_proof = self
             .provider
-            .get_proof(self.world_id_addr, vec![self.storage_slot])
+            .get_proof(self.world_id_addr, vec![self.latest_root_slot])
             .block_id(BlockId::from(block_number))
             .await?;
 
