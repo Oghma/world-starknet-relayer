@@ -12,6 +12,8 @@ use clap::Parser;
 use eyre::Result;
 use tracing_subscriber::{fmt, EnvFilter};
 
+use relayer::RelayerBuilder;
+
 #[derive(Debug, Parser)]
 #[command(version, about, author)]
 struct Config {
@@ -63,5 +65,6 @@ async fn main() -> Result<()> {
     let config = Config::parse();
     tracing::debug!(?config, "Loaded configuration");
 
-    relayer::run(config).await
+    let relayer = RelayerBuilder::new(config).build().await?;
+    relayer.relay().await
 }

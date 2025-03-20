@@ -1,195 +1,106 @@
-use std::{fs, str::FromStr};
+use std::str::FromStr;
 
 use alloy::{
-    eips::{BlockId, BlockNumberOrTag},
+    eips::BlockId,
     primitives::{Address, FixedBytes, U256},
-    providers::{Provider, ProviderBuilder},
+    providers::{DynProvider, Provider, ProviderBuilder},
     rpc::types::BlockTransactionsKind,
-    sol,
 };
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use futures_util::StreamExt;
-use garaga_rs::{
-    calldata::full_proof_with_hints::groth16::{
-        get_groth16_calldata_felt, risc0_utils::get_risc0_vk, Groth16Proof,
-    },
-    definitions::CurveID,
-};
-use methods::STORAGE_INCLUSION_ELF;
-use risc0_ethereum_contracts::encode_seal;
-use risc0_zkvm::{compute_image_id, default_prover, ExecutorEnv, ProverOpts, Receipt};
-use serde::{Deserialize, Serialize};
-use starknet::{
-    accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
-    core::{
-        chain_id,
-        types::{Call, Felt},
-        utils::get_selector_from_name,
-    },
-    providers::{jsonrpc::HttpTransport, JsonRpcClient, Url},
-    signers::{LocalWallet, SigningKey},
-};
-use tokio::task;
 use types::{header::RlpHeader, proofs::AccountProof, ProverInput};
 
-use crate::Config;
+use crate::{listener::WorldIDListener, prover::Risc0Prover, publisher::ProofPublisher, Config};
 
-sol!(
-    #[sol(rpc)]
-    WorldIdentityManager,
-    "abi/WorldIdentityManager.json"
-);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Groth16 {
-    receipt: Receipt,
-    calldata: Vec<Felt>,
+#[derive(Debug, Clone)]
+pub struct Relayer {
+    storage_slot: FixedBytes<32>,
+    world_listener: WorldIDListener,
+    provider: DynProvider,
+    world_id_addr: Address,
+    prover: Risc0Prover,
+    proof_publisher: ProofPublisher,
 }
 
-pub async fn run(config: Config) -> Result<()> {
-    let storage_slot = FixedBytes::from(U256::from(config.root_slot));
+/// Builder for the Relayer struct to simplify initialization
+pub struct RelayerBuilder {
+    config: Config,
+}
 
-    let starknet_provider =
-        JsonRpcClient::new(HttpTransport::new(Url::from_str(&config.starknet_rpc_url)?));
-    let signer = LocalWallet::from(SigningKey::from_secret_scalar(Felt::from_hex(
-        &config.private_key,
-    )?));
-    tracing::info!("{:?}", config.account_address);
-    let account_address = Felt::from_hex(&config.account_address)?;
-    let verifier_contract = Felt::from_hex(&config.world_verifier)?;
-    let starknet_account = SingleOwnerAccount::new(
-        starknet_provider,
-        signer,
-        account_address,
-        chain_id::SEPOLIA,
-        ExecutionEncoding::New,
-    );
+impl RelayerBuilder {
+    /// Create a new RelayerBuilder with the provided configuration
+    pub fn new(config: Config) -> Self {
+        Self { config }
+    }
 
-    let main_provider = ProviderBuilder::new()
-        .on_builtin(&config.first_rpc_url)
-        .await?;
-    let world_id_addr = Address::from_str(&config.world_im)?;
-    let world_id = WorldIdentityManager::new(world_id_addr, main_provider.clone());
-    tracing::info!("World id manager address: {world_id_addr}");
+    pub async fn build(self) -> Result<Relayer> {
+        let storage_slot = FixedBytes::<32>::from(U256::from(self.config.root_slot));
+        let provider = ProviderBuilder::new()
+            .on_builtin(&self.config.first_rpc_url)
+            .await?
+            .erased();
 
-    let block_number = main_provider.get_block_number().await?;
-    tracing::info!("Starting relay from block {block_number}");
+        let world_idm = Address::from_str(&self.config.world_im)
+            .wrap_err("Failed to parse World Identity Manager address")?;
+        let world_listener = WorldIDListener::new(provider.clone(), world_idm.clone());
 
-    let latest_root = world_id.latestRoot().call().await?._0;
-    tracing::info!("Current worldId latest root: {}", latest_root);
+        let prover = Risc0Prover {};
+        let publisher = ProofPublisher::new(
+            &self.config.starknet_rpc_url,
+            &self.config.private_key,
+            &self.config.account_address,
+            &self.config.world_verifier,
+        )?;
 
-    // let filter = world_id
-    //     .TreeChanged_filter()
-    //     .from_block(BlockNumberOrTag::Number(21905010))
-    //     .subscribe()
-    //     .await?;
-    //let mut stream = filter.into_stream();
-    let logs = world_id
-        .TreeChanged_filter()
-        .from_block(BlockNumberOrTag::Number(21905010))
-        .query()
-        .await?;
-    //let logs = main_provider.get_logs(&filter).await?;
+        Ok(Relayer {
+            storage_slot,
+            world_listener,
+            provider,
+            world_id_addr: world_idm,
+            prover,
+            proof_publisher: publisher,
+        })
+    }
+}
 
-    for log in logs {
-        //while let Some(log) = stream.next().await {
-        let (event, log) = log; //.unwrap();
-        tracing::info!("New TreeChanged event");
+impl Relayer {
+    pub async fn relay(&self) -> Result<()> {
+        let stream = self.world_listener.subscribe().await?;
+        tokio::pin!(stream);
 
-        if event.preRoot == event.postRoot {
-            tracing::info!("latesRoot has not changed, ignoring...");
-            continue;
+        while let Some((event, block_number)) = stream.next().await {
+            let new_root = event.postRoot;
+            tracing::info!("New root detected: {:?}", new_root);
+
+            let prover_input = self.prepare_prover_input(block_number).await?;
+            let proof = self.prover.prove(prover_input).await?;
+            self.proof_publisher.publish(&proof).await?;
         }
 
-        let new_root = event.postRoot;
-        tracing::info!("New root detected: {:?}", new_root);
+        Ok(())
+    }
 
+    async fn prepare_prover_input(&self, block_number: u64) -> Result<ProverInput> {
         // Make the calls for proving
-        let block_number = log.block_number.unwrap();
-        let block = main_provider
+        let block = self
+            .provider
             .get_block(BlockId::from(block_number), BlockTransactionsKind::Hashes)
             .await?
-            .unwrap()
-            .into_consensus();
+            .unwrap();
 
-        let account_proof = main_provider
-            .get_proof(world_id_addr, vec![storage_slot])
+        let block_hash = block.header.hash;
+        let block = block.into_consensus();
+
+        let account_proof = self
+            .provider
+            .get_proof(self.world_id_addr, vec![self.storage_slot])
             .block_id(BlockId::from(block_number))
             .await?;
 
-        // Fetch block hash from another node
-        let block_hash = main_provider
-            .get_block_by_number(
-                BlockNumberOrTag::Number(block_number),
-                BlockTransactionsKind::Hashes,
-            )
-            .await?
-            .unwrap()
-            .header
-            .hash;
-
-        let input = ProverInput {
+        Ok(ProverInput {
             header: RlpHeader::new(block.header),
             account_proof: AccountProof::from(account_proof),
             block_header: block_hash,
-        };
-
-        // let proof = run_prover(input).await?;
-
-        // let proof_serialized = serde_json::to_string(&proof)?;
-        // fs::write("proof.json", proof_serialized)?;
-
-        let proof = serde_json::from_str(&fs::read_to_string("proof.json")?)?;
-        publish_proof(&starknet_account, &proof, verifier_contract).await?;
-        panic!("");
+        })
     }
-
-    Ok(())
-}
-
-async fn run_prover(input: ProverInput) -> Result<Groth16> {
-    tracing::info!("Starting proof generation");
-    task::spawn_blocking(move || {
-        let env = ExecutorEnv::builder()
-            .write(&input)
-            .expect("failed to write the prover input")
-            .build()
-            .unwrap();
-
-        let prover = default_prover();
-        let receipt = prover
-            .prove_with_opts(env, STORAGE_INCLUSION_ELF, &ProverOpts::groth16())
-            .unwrap()
-            .receipt;
-
-        tracing::info!("Proof generated");
-        let seal = encode_seal(&receipt).unwrap();
-        let image_id = compute_image_id(STORAGE_INCLUSION_ELF).unwrap();
-        let journal = receipt.journal.bytes.clone();
-
-        let proof = Groth16Proof::from_risc0(seal, image_id.as_bytes().to_vec(), journal);
-        let calldata = get_groth16_calldata_felt(&proof, &get_risc0_vk(), CurveID::BN254).unwrap();
-        Ok(Groth16 { receipt, calldata })
-    })
-    .await?
-}
-
-async fn publish_proof(
-    account: &SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
-    proof: &Groth16,
-    verifier_contract: Felt,
-) -> Result<()> {
-    let selector = get_selector_from_name("verify_latest_root_proof").unwrap();
-    let call = Call {
-        to: verifier_contract,
-        selector,
-        calldata: proof.calldata.clone(),
-    };
-
-    let txn = account.execute_v3(vec![call]).send().await;
-    tracing::info!("{:#?}", txn);
-    let txn = txn?;
-    tracing::info!("Update latest root transaction:  {}", txn.transaction_hash);
-
-    Ok(())
 }
